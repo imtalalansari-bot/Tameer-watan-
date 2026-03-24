@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: admissions
+    // Document ID: auto-generated
+    // Fields:
+    //   - fullName: string (required)
+    //   - fatherName: string (required)
+    //   - cnic: string (required)
+    //   - phone: string (required)
+    //   - email: string (required)
+    //   - address: string (required)
+    //   - classApplyingFor: string (required)
+    //   - previousSchool: string (optional)
+    //   - marks: number (required)
+    //   - status: string (required, enum: ['pending', 'approved', 'rejected'])
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: users
+    // Document ID: userId (uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: ['admin', 'user'])
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPrincipal() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'principal' ||
+        (request.auth.token.email == "imtalalansari@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidAdmission(data) {
+      return data.keys().hasAll(['fullName', 'fatherName', 'cnic', 'phone', 'email', 'address', 'classApplyingFor', 'status', 'createdAt']) &&
+             data.fullName is string && data.fullName.size() >= 3 && data.fullName.size() < 100 &&
+             data.fatherName is string && data.fatherName.size() >= 3 && data.fatherName.size() < 100 &&
+             data.cnic is string && data.cnic.size() >= 13 && data.cnic.size() < 20 &&
+             data.phone is string && data.phone.size() >= 10 && data.phone.size() < 20 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.address is string && data.address.size() >= 10 && data.address.size() < 500 &&
+             data.classApplyingFor is string &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.createdAt is string && data.createdAt.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$") &&
+             data.marks is number;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['principal', 'user'];
+    }
+
+    function isValidInvite(data) {
+      return data.keys().hasAll(['email', 'role', 'invitedBy', 'createdAt']) &&
+             data.email is string &&
+             data.role == 'principal' &&
+             data.invitedBy is string &&
+             data.createdAt is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /admissions/{admissionId} {
+      // Anyone can apply (create)
+      allow create: if isValidAdmission(request.resource.data);
+      
+      // Only principal can read, update, or delete
+      allow read, update, delete: if isPrincipal();
+    }
+
+    match /users/{userId} {
+      // Users can manage their own profile (but not change their own role unless they are already principal)
+      allow read: if isOwner(userId) || isPrincipal();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isPrincipal();
+      allow delete: if isPrincipal();
+    }
+
+    match /invites/{inviteId} {
+      // Principal can manage invites
+      allow read, write: if isPrincipal();
+      
+      // Users can read their own invite to verify access during login
+      allow read: if isAuthenticated() && request.auth.token.email == resource.data.email;
+    }
+  }
+}

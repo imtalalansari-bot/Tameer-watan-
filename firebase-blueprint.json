@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "Admission": {
+      "title": "Admission Application",
+      "description": "A student's application for admission",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "description": "Full name of the student" },
+        "fatherName": { "type": "string", "description": "Father's name" },
+        "cnic": { "type": "string", "description": "CNIC or B-Form number" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "email": { "type": "string", "description": "Email address" },
+        "address": { "type": "string", "description": "Residential address" },
+        "classApplyingFor": { "type": "string", "description": "Target class" },
+        "previousSchool": { "type": "string", "description": "Previous school name" },
+        "marks": { "type": "number", "description": "Obtained marks in SSC" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Application status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submission timestamp" }
+      },
+      "required": ["fullName", "fatherName", "cnic", "phone", "email", "address", "classApplyingFor", "status", "createdAt"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User account information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/admissions/{admissionId}": {
+      "schema": "Admission",
+      "description": "Collection of student admission applications"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles"
+    }
+  }
+}
